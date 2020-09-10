@@ -1,0 +1,35 @@
+{
+  "name": "@imooc-cli/init",
+  "version": "1.0.0",
+  "description": "imooc-cli init",
+  "author": "sam <247765564@qq.com>",
+  "homepage": "https://github.com/sam9831/imooc-cli#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "__tests__"
+  },
+  "files": [
+    "lib"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sam9831/imooc-cli.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: run tests from root\" && exit 1"
+  },
+  "bugs": {
+    "url": "https://github.com/sam9831/imooc-cli/issues"
+  },
+  "devDependencies": {
+    "mocha": "^8.1.3"
+  },
+  "scripts": {
+    "test": "mocha __tests__/init.test.js"
+  }
+}
