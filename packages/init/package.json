@@ -27,7 +27,8 @@
     "url": "https://github.com/sam9831/imooc-cli/issues"
   },
   "devDependencies": {
-    "mocha": "^8.1.3"
+    "mocha": "^8.1.3",
+    "@imooc-cli/utils": "^1.0.0"
   },
   "scripts": {
     "test": "mocha __tests__/init.test.js"

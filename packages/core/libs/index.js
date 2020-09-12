@@ -44,18 +44,21 @@ function registerCommand() {
   program
     .command('init [type]')
     .description('项目初始化')
-    .action(async (type) => {
-      try {
-        const initPackage = new Package({
-          ...config,
-          packageDir: DEPENDENCIES_PATH,
-          packageName: 'npminstall',
-          packageVersion: '4.9.1',
-        });
-        await initPackage.install();
-      } catch (e) {
-        log.error(e.message);
-      }
+    .option('--packagePath <packagePath>', '手动指定init包路径')
+    .action(async (type, { packagePath }) => {
+      const packageName = '@imooc-cli/init';
+      const packageVersion = '1.0.0';
+      await execCommand({ packagePath, packageName, packageVersion }, { type });
+    });
+
+  program
+    .command('publish')
+    .description('项目发布')
+    .option('--packagePath <packagePath>', '手动指定publish包路径')
+    .action(async ({ packagePath }) => {
+      const packageName = '@imooc-cli/publish';
+      const packageVersion = '1.0.0';
+      await execCommand({ packagePath, packageName, packageVersion });
     });
 
   program
@@ -88,6 +91,71 @@ function registerCommand() {
     program.outputHelp();
     console.log();
   }
+}
+
+async function execCommand({ packagePath, packageName, packageVersion }, extraOptions) {
+  let rootFile;
+  try {
+    if (packagePath) {
+      const execPackage = new Package({
+        targetPath: packagePath,
+        storePath: packagePath,
+        name: packageName,
+        version: packageVersion,
+      });
+      rootFile = execPackage.getRootFilePath(true);
+    } else {
+      const { cliHome } = config;
+      const packageDir = `${DEPENDENCIES_PATH}`;
+      const targetPath = path.resolve(cliHome, packageDir);
+      const storePath = path.resolve(targetPath, 'node_modules');
+      const initPackage = new Package({
+        targetPath,
+        storePath,
+        name: packageName,
+        version: packageVersion,
+      });
+      if (initPackage.exists()) {
+        await initPackage.update();
+      } else {
+        await initPackage.install();
+      }
+      rootFile = initPackage.getRootFilePath();
+    }
+    const _config = Object.assign({}, config, extraOptions);
+    if (fs.existsSync(rootFile)) {
+      const code = `require('${rootFile}')(${JSON.stringify(_config)})`;
+      const p = exec('node', ['-e', code], { 'stdio': 'inherit' });
+      p.on('error', e => {
+        log.verbose('spawn error', e);
+        handleError(e);
+        process.exit(1);
+      });
+      p.on('exit', c => {
+        log.verbose('spawn exit', c);
+        process.exit(c);
+      });
+    } else {
+      throw new Error('入口文件不存在，请重试！');
+    }
+  } catch (e) {
+    log.error(e.message);
+  }
+}
+
+function handleError(e) {
+  log.error('Error', e.message);
+  log.error('stack', e.stack);
+  process.exit(1);
+}
+
+function exec(command, args, options) {
+  const win32 = process.platform === 'win32';
+
+  const cmd = win32 ? 'cmd' : command;
+  const cmdArgs = win32 ? ['/c'].concat(command, args) : args;
+
+  return require('child_process').spawn(cmd, cmdArgs, options || {});
 }
 
 function cleanAll() {

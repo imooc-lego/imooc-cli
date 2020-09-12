@@ -1,7 +1,9 @@
 'use strict';
 
-module.exports = index;
+const { log } = require('@imooc-cli/utils');
 
-function index() {
-    // TODO
+function init(options) {
+  log.verbose('init', options);
 }
+
+module.exports = init;

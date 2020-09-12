@@ -11,23 +11,22 @@ const npm = require('./npm');
 class Package {
   constructor(options) {
     log.verbose('options', options);
-    this.cliHome = options.cliHome;
-    this.packageDir = options.packageDir;
-    this.packageName = options.packageName;
-    this.packageVersion = options.packageVersion;
-    this.targetPath = path.resolve(this.cliHome, this.packageDir);
-    this.storePath = path.resolve(this.targetPath, 'node_modules');
+    this.targetPath = options.targetPath;
+    this.storePath = options.storePath;
+    this.packageName = options.name;
+    this.packageVersion = options.version;
+    this.npmFilePath = path.resolve(this.storePath, `_${this.packageName}@${this.packageVersion}@${this.packageName}`);
   }
 
   prepare() {
-    log.verbose('targetPath', this.targetPath);
-    log.verbose('storePath', this.storePath);
     if (!fs.existsSync(this.targetPath)) {
       fse.mkdirpSync(this.targetPath);
     }
     if (!fs.existsSync(this.storePath)) {
       fse.mkdirpSync(this.storePath);
     }
+    log.verbose(this.targetPath);
+    log.verbose(this.storePath);
   }
 
   install() {
@@ -43,16 +42,52 @@ class Package {
     });
   }
 
-  update() {
+  exists() {
+    return fs.existsSync(this.npmFilePath);
+  }
+
+  getPackage(isOriginal = false) {
+    if (!isOriginal) {
+      return fse.readJsonSync(path.resolve(this.npmFilePath, 'package.json'));
+    }
+    return fse.readJsonSync(path.resolve(this.storePath, 'package.json'));
+  }
+
+  getRootFilePath(isOriginal = false) {
+    const pkg = this.getPackage(isOriginal);
+    if (pkg) {
+      if (!isOriginal) {
+        return path.resolve(this.npmFilePath, pkg.main);
+      }
+      return path.resolve(this.storePath, pkg.main);
+    }
+    return null;
+  }
+
+  get version() {
     this.prepare();
+    return this.exists() ? this.getPackage().version : null;
+  }
+
+  async getLatestVersion() {
+    const version = this.version;
+    if (version) {
+      const latestVersion = await npm.getNpmLatestSemverVersion(this.packageName, version);
+      return latestVersion;
+    }
+    return null;
+  }
+
+  async update() {
+    const latestVersion = await this.getLatestVersion();
     return npminstall({
       root: this.targetPath,
       storeDir: this.storePath,
       registry: npm.getNpmRegistry(),
       pkgs: [{
         name: this.packageName,
-        version: this.packageVersion,
-      }]
+        version: latestVersion,
+      }],
     });
   }
 }

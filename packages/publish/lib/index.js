@@ -1,7 +1,9 @@
 'use strict';
 
-module.exports = index;
+const { log } = require('@imooc-cli/utils');
 
-function index() {
-    // TODO
+function publish(options) {
+  log.verbose('publish', options);
 }
+
+module.exports = publish;
