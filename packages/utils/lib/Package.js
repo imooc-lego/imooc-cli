@@ -5,6 +5,8 @@ const npminstall = require('npminstall');
 const log = require('./log');
 const npm = require('./npm');
 
+const useOriginNpm = false;
+
 /**
  * Package 类，用于管理动态下载的库文件
  */
@@ -15,10 +17,14 @@ class Package {
     this.storePath = options.storePath;
     this.packageName = options.name;
     this.packageVersion = options.version;
-    this.npmFilePath = path.resolve(this.storePath, `_${this.packageName}@${this.packageVersion}@${this.packageName}`);
+    this.npmFilePathPrefix = this.packageName.replace('/', '_');
   }
 
-  prepare() {
+  get npmFilePath() {
+    return path.resolve(this.storePath, `_${this.npmFilePathPrefix}@${this.packageVersion}@${this.packageName}`);
+  }
+
+  async prepare() {
     if (!fs.existsSync(this.targetPath)) {
       fse.mkdirpSync(this.targetPath);
     }
@@ -27,22 +33,29 @@ class Package {
     }
     log.verbose(this.targetPath);
     log.verbose(this.storePath);
+    const latestVersion = await npm.getNpmLatestSemverVersion(this.packageName, this.packageVersion);
+    log.verbose('latestVersion', this.packageName, latestVersion);
+    if (latestVersion) {
+      this.packageVersion = latestVersion;
+    }
   }
 
-  install() {
-    this.prepare();
+  async install() {
+    await this.prepare();
+    log.verbose('install', this.packageName, this.packageVersion);
     return npminstall({
       root: this.targetPath,
       storeDir: this.storePath,
-      registry: npm.getNpmRegistry(),
+      registry: npm.getNpmRegistry(useOriginNpm),
       pkgs: [{
         name: this.packageName,
         version: this.packageVersion,
-      }]
+      }],
     });
   }
 
-  exists() {
+  async exists() {
+    await this.prepare();
     return fs.existsSync(this.npmFilePath);
   }
 
@@ -64,13 +77,13 @@ class Package {
     return null;
   }
 
-  get version() {
-    this.prepare();
-    return this.exists() ? this.getPackage().version : null;
+  async getVersion() {
+    await this.prepare();
+    return await this.exists() ? this.getPackage().version : null;
   }
 
   async getLatestVersion() {
-    const version = this.version;
+    const version = await this.getVersion();
     if (version) {
       const latestVersion = await npm.getNpmLatestSemverVersion(this.packageName, version);
       return latestVersion;
@@ -80,10 +93,11 @@ class Package {
 
   async update() {
     const latestVersion = await this.getLatestVersion();
+    log.verbose('install', this.packageName, latestVersion);
     return npminstall({
       root: this.targetPath,
       storeDir: this.storePath,
-      registry: npm.getNpmRegistry(),
+      registry: npm.getNpmRegistry(useOriginNpm),
       pkgs: [{
         name: this.packageName,
         version: latestVersion,

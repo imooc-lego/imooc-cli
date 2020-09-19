@@ -26,8 +26,11 @@
   "bugs": {
     "url": "https://github.com/sam9831/imooc-cli/issues"
   },
-  "devDependencies": {
+  "dependencies": {
     "@imooc-cli/utils": "^1.0.1",
+    "fs-extra": "^9.0.1"
+  },
+  "devDependencies": {
     "mocha": "^8.1.3"
   }
 }
