@@ -32,6 +32,7 @@
   "dependencies": {
     "axios": "^0.20.0",
     "fs-extra": "^9.0.1",
+    "inquirer": "^7.3.3",
     "npminstall": "^4.9.1",
     "npmlog": "^4.1.2",
     "semver": "^7.3.2",
