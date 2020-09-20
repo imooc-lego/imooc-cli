@@ -2,8 +2,11 @@
 
 const fs = require('fs');
 const fse = require('fs-extra');
-const { log, inquirer, spinner, Package, sleep, exec } = require('@imooc-cli/utils');
+const { log, inquirer, spinner, Package, sleep, exec, formatName, formatClassName, ejs } = require('@imooc-cli/utils');
 const getProjectTemplate = require('./getProjectTemplate');
+
+const TYPE_PROJECT = 'project';
+const TYPE_COMPONENT = 'component';
 
 async function init(options) {
   try {
@@ -20,12 +23,12 @@ async function init(options) {
       return;
     }
     // 获取项目模板列表
-    const { templateList } = result;
+    const { templateList, project } = result;
     // 缓存项目模板文件
     const template = await downloadTemplate(templateList, options);
     log.verbose('template', template);
     // 安装项目模板
-    await installTemplate(template, options);
+    await installTemplate(template, project, options);
   } catch (e) {
     log.error('Error:', e.message);
   }
@@ -55,15 +58,31 @@ async function execStartCommand(targetPath, startCommand) {
   });
 }
 
-async function installTemplate(template, options) {
+async function installTemplate(template, ejsData, options) {
   // 安装模板
   let spinnerStart = spinner(`正在安装模板...`);
   await sleep(1000);
   const sourceDir = template.path;
   const targetDir = options.targetPath;
+  fse.ensureDirSync(sourceDir);
+  fse.ensureDirSync(targetDir);
   fse.copySync(sourceDir, targetDir);
   spinnerStart.stop(true);
   log.success('模板安装成功');
+  // ejs 模板渲染
+  const ejsIgnoreFiles = [
+    `**/node_modules/**`,
+    `**/.git/**`,
+    `**/.vscode/**`,
+    `**/.DS_Store`,
+  ];
+  if (template.ignore) {
+    ejsIgnoreFiles.push(...template.ignore);
+  }
+  log.verbose('ejsData', ejsData);
+  await ejs(targetDir, ejsData, {
+    ignore: ejsIgnoreFiles
+  });
   // 安装依赖文件
   log.notice('开始安装依赖');
   await npminstall(targetDir);
@@ -104,6 +123,11 @@ async function downloadTemplate(templateList, options) {
   } else {
     log.notice('模板已存在', `${selectedTemplate.npmName}@${selectedTemplate.version}`);
     log.notice('模板路径', `${targetPath}`);
+    let spinnerStart = spinner(`开始更新模板...`);
+    await sleep(1000);
+    await templatePkg.update();
+    spinnerStart.stop(true);
+    log.success('更新模板成功');
   }
   // 生成模板路径
   const templatePath = path.resolve(templatePkg.npmFilePath, 'template');
@@ -144,13 +168,71 @@ async function prepare(options) {
       fse.emptyDirSync(targetDir);
     }
   }
-  const templateList = await getProjectTemplate();
-  if (!templateList || templateList.length === 0) {
-    throw new Error('项目模板列表获取失败');
+  let initType = await getInitType();
+  log.verbose('initType', initType);
+  if (initType === TYPE_PROJECT) {
+    const templateList = await getProjectTemplate();
+    if (!templateList || templateList.length === 0) {
+      throw new Error('项目模板列表获取失败');
+    }
+    let projectName = '';
+    let className = '';
+    while (!projectName) {
+      projectName = await getProjectName();
+      if (projectName) {
+        projectName = formatName(projectName);
+        className = formatClassName(projectName);
+      }
+      log.verbose('projectName', projectName);
+      log.verbose('className', className);
+    }
+    let version = '1.0.0';
+    do {
+      version = await getProjectVersion(version);
+      log.verbose('version', version);
+    } while (!version);
+    return {
+      templateList,
+      project: {
+        name: projectName,
+        className,
+        version,
+      },
+    };
+  } else {
+    return null;
   }
-  return {
-    templateList,
-  };
+}
+
+function getProjectVersion(defaultVersion) {
+  return inquirer({
+    type: 'string',
+    message: '请输入项目版本号',
+    defaultValue: defaultVersion,
+  });
+}
+
+function getInitType() {
+  return inquirer({
+    type: 'list',
+    choices: [{
+      name: '项目',
+      value: TYPE_PROJECT,
+    }, {
+      name: '组件',
+      value: TYPE_COMPONENT,
+    }],
+    message: '请选择初始化类型',
+    defaultValue: TYPE_PROJECT,
+  });
+}
+
+function getProjectName() {
+  return inquirer({
+    type: 'string',
+    message: '请输入项目名称',
+    defaultValue: '',
+  });
 }
 
 function createTemplateChoice(list) {

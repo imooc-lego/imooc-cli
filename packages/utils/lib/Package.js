@@ -42,7 +42,6 @@ class Package {
 
   async install() {
     await this.prepare();
-    log.verbose('install', this.packageName, this.packageVersion);
     return npminstall({
       root: this.targetPath,
       storeDir: this.storePath,
@@ -93,7 +92,6 @@ class Package {
 
   async update() {
     const latestVersion = await this.getLatestVersion();
-    log.verbose('install', this.packageName, latestVersion);
     return npminstall({
       root: this.targetPath,
       storeDir: this.storePath,
