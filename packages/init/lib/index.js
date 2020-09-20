@@ -7,6 +7,8 @@ const getProjectTemplate = require('./getProjectTemplate');
 
 const TYPE_PROJECT = 'project';
 const TYPE_COMPONENT = 'component';
+const TEMPLATE_TYPE_NORMAL = 'normal';
+const TEMPLATE_TYPE_CUSTOM = 'custom';
 
 async function init(options) {
   try {
@@ -27,11 +29,47 @@ async function init(options) {
     // 缓存项目模板文件
     const template = await downloadTemplate(templateList, options);
     log.verbose('template', template);
-    // 安装项目模板
-    await installTemplate(template, project, options);
+    if (template.type === TEMPLATE_TYPE_NORMAL) {
+      // 安装项目模板
+      await installTemplate(template, project, options);
+    } else if (template.type === TEMPLATE_TYPE_CUSTOM) {
+      await installCustomTemplate(template, project, options);
+    } else {
+      throw new Error('未知的模板类型！');
+    }
   } catch (e) {
     log.error('Error:', e.message);
   }
+}
+
+async function installCustomTemplate(template, ejsData, options) {
+  const pkgPath = path.resolve(template.sourcePath, 'package.json');
+  const pkg = fse.readJsonSync(pkgPath);
+  const rootFile = path.resolve(template.sourcePath, pkg.main);
+  if (!fs.existsSync(rootFile)) {
+    throw new Error('入口文件不存在！');
+  }
+  log.notice('开始执行自定义模板');
+  const targetPath = options.targetPath;
+  await execCustomTemplate(rootFile, {
+    targetPath,
+    data: ejsData,
+    template,
+  });
+  log.success('自定义模板执行成功');
+}
+
+function execCustomTemplate(rootFile, options) {
+  const code = `require('${rootFile}')(${JSON.stringify(options)})`;
+  return new Promise((resolve, reject) => {
+    const p = exec('node', ['-e', code], { 'stdio': 'inherit' });
+    p.on('error', e => {
+      reject(e);
+    });
+    p.on('exit', c => {
+      resolve(c);
+    });
+  });
 }
 
 async function npminstall(targetPath) {
@@ -71,17 +109,17 @@ async function installTemplate(template, ejsData, options) {
   log.success('模板安装成功');
   // ejs 模板渲染
   const ejsIgnoreFiles = [
-    `**/node_modules/**`,
-    `**/.git/**`,
-    `**/.vscode/**`,
-    `**/.DS_Store`,
+    '**/node_modules/**',
+    '**/.git/**',
+    '**/.vscode/**',
+    '**/.DS_Store',
   ];
   if (template.ignore) {
     ejsIgnoreFiles.push(...template.ignore);
   }
   log.verbose('ejsData', ejsData);
   await ejs(targetDir, ejsData, {
-    ignore: ejsIgnoreFiles
+    ignore: ejsIgnoreFiles,
   });
   // 安装依赖文件
   log.notice('开始安装依赖');
@@ -130,7 +168,8 @@ async function downloadTemplate(templateList, options) {
     log.success('更新模板成功');
   }
   // 生成模板路径
-  const templatePath = path.resolve(templatePkg.npmFilePath, 'template');
+  const templateSourcePath = templatePkg.npmFilePath;
+  const templatePath = path.resolve(templateSourcePath, 'template');
   log.verbose('template path', templatePath);
   if (!fs.existsSync(templatePath)) {
     throw new Error(`[${templateName}]项目模板不存在！`);
@@ -138,6 +177,7 @@ async function downloadTemplate(templateList, options) {
   const template = {
     ...selectedTemplate,
     path: templatePath,
+    sourcePath: templateSourcePath,
   };
   return template;
 }
