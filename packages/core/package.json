@@ -10,11 +10,11 @@
     "imooc-cli": "bin/imooc-cli.js"
   },
   "directories": {
-    "lib": "lib",
+    "lib": "libs",
     "test": "__tests__"
   },
   "files": [
-    "lib"
+    "libs"
   ],
   "publishConfig": {
     "access": "public"
