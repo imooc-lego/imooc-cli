@@ -1,7 +1,7 @@
 const axios = require('axios');
 const log = require('./log');
 
-const BASE_URL = 'http://book.youbaobao.xyz:7001';
+const BASE_URL = 'http://book.youbaobao.xyz:7002';
 
 const service = axios.create({
   baseURL: BASE_URL,
