@@ -1,6 +1,6 @@
 {
   "name": "@imooc-cli/init",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "imooc-cli init",
   "author": "sam <247765564@qq.com>",
   "homepage": "https://github.com/sam9831/imooc-cli#readme",
@@ -27,7 +27,7 @@
     "url": "https://github.com/sam9831/imooc-cli/issues"
   },
   "dependencies": {
-    "@imooc-cli/utils": "^1.0.1",
+    "@imooc-cli/utils": "^1.0.2",
     "fs-extra": "^9.0.1"
   },
   "devDependencies": {
