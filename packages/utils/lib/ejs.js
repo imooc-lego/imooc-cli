@@ -6,7 +6,7 @@ const get = require('lodash/get');
 
 const log = require('./log');
 
-module.exports = async function(dir, options, extraOptions, diableFormatDotFile = false) {
+module.exports = async function(dir, options = {}, extraOptions = {}, diableFormatDotFile = false) {
   const ignore = get(extraOptions, 'ignore');
   log.verbose('ignore', ignore);
   return new Promise((resolve, reject) => {

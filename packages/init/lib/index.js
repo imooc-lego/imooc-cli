@@ -10,6 +10,8 @@ const TYPE_COMPONENT = 'component';
 const TEMPLATE_TYPE_NORMAL = 'normal';
 const TEMPLATE_TYPE_CUSTOM = 'custom';
 
+const DEFAULT_TYPE = TYPE_PROJECT;
+
 async function init(options) {
   try {
     // 设置 targetPath
@@ -210,27 +212,28 @@ async function prepare(options) {
   }
   let initType = await getInitType();
   log.verbose('initType', initType);
+  let templateList = await getProjectTemplate();
+  if (!templateList || templateList.length === 0) {
+    throw new Error('项目模板列表获取失败');
+  }
+  let projectName = '';
+  let className = '';
+  while (!projectName) {
+    projectName = await getProjectName(initType);
+    if (projectName) {
+      projectName = formatName(projectName);
+      className = formatClassName(projectName);
+    }
+    log.verbose('name', projectName);
+    log.verbose('className', className);
+  }
+  let version = '1.0.0';
+  do {
+    version = await getProjectVersion(version, initType);
+    log.verbose('version', version);
+  } while (!version);
   if (initType === TYPE_PROJECT) {
-    const templateList = await getProjectTemplate();
-    if (!templateList || templateList.length === 0) {
-      throw new Error('项目模板列表获取失败');
-    }
-    let projectName = '';
-    let className = '';
-    while (!projectName) {
-      projectName = await getProjectName();
-      if (projectName) {
-        projectName = formatName(projectName);
-        className = formatClassName(projectName);
-      }
-      log.verbose('projectName', projectName);
-      log.verbose('className', className);
-    }
-    let version = '1.0.0';
-    do {
-      version = await getProjectVersion(version);
-      log.verbose('version', version);
-    } while (!version);
+    templateList = templateList.filter(item => item.tag.includes('project'));
     return {
       templateList,
       project: {
@@ -240,14 +243,36 @@ async function prepare(options) {
       },
     };
   } else {
-    return null;
+    templateList = templateList.filter(item => item.tag.includes('component'));
+    let description = '';
+    while (!description) {
+      description = await getComponentDescription();
+      log.verbose('description', description);
+    }
+    return {
+      templateList,
+      project: {
+        name: projectName,
+        className,
+        version,
+        description,
+      },
+    };
   }
 }
 
-function getProjectVersion(defaultVersion) {
+function getComponentDescription() {
   return inquirer({
     type: 'string',
-    message: '请输入项目版本号',
+    message: '请输入组件的描述信息',
+    defaultValue: '',
+  });
+}
+
+function getProjectVersion(defaultVersion, initType) {
+  return inquirer({
+    type: 'string',
+    message: initType === TYPE_PROJECT ? '请输入项目版本号' : '请输入组件版本号',
     defaultValue: defaultVersion,
   });
 }
@@ -263,14 +288,14 @@ function getInitType() {
       value: TYPE_COMPONENT,
     }],
     message: '请选择初始化类型',
-    defaultValue: TYPE_PROJECT,
+    defaultValue: DEFAULT_TYPE,
   });
 }
 
-function getProjectName() {
+function getProjectName(initType) {
   return inquirer({
     type: 'string',
-    message: '请输入项目名称',
+    message: initType === TYPE_PROJECT ? '请输入项目名称' : '请输入组件名称',
     defaultValue: '',
   });
 }
