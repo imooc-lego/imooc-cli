@@ -41,6 +41,7 @@ async function init(options) {
     }
   } catch (e) {
     log.error('Error:', e.message);
+    log.error('Error:', e.stack);
   }
 }
 

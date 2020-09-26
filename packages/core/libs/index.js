@@ -57,10 +57,12 @@ function registerCommand() {
     .command('publish')
     .description('项目发布')
     .option('--packagePath <packagePath>', '手动指定publish包路径')
-    .action(async ({ packagePath }) => {
+    .option('--refreshToken', '强制更新github token信息')
+    .option('--refreshRemote', '强制更新github remote信息')
+    .action(async ({ packagePath, refreshToken, refreshRemote }) => {
       const packageName = '@imooc-cli/publish';
       const packageVersion = '1.0.0';
-      await execCommand({ packagePath, packageName, packageVersion });
+      await execCommand({ packagePath, packageName, packageVersion }, { refreshToken, refreshRemote });
     });
 
   program

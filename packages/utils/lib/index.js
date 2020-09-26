@@ -6,8 +6,10 @@ const npm = require('./npm');
 const inquirer = require('./inquirer');
 const spinner = require('./spinner');
 const ejs = require('./ejs');
+const terminalLink = require('./terminalLink');
 
 const Package = require('./Package');
+const Github = require('./Github');
 
 function sleep(timeout) {
   return new Promise((resolve => {
@@ -71,8 +73,10 @@ module.exports = {
   spinner,
   ejs,
   Package,
+  Github,
   sleep,
   exec,
   formatName,
   formatClassName,
+  terminalLink,
 };

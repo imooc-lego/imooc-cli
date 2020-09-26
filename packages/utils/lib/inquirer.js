@@ -1,12 +1,13 @@
 const inquirer = require('inquirer')
 
-module.exports = function({ choices, defaultValue, message, type = 'list', require = true }) {
+module.exports = function({ choices, defaultValue, message, type = 'list', require = true, mask = '*' }) {
   const options = {
     type,
     name: 'name',
     message,
     default: defaultValue,
-    require
+    require,
+    mask,
   }
   if (type === 'list') {
     options.choices = choices;
