@@ -40,8 +40,13 @@ async function init(options) {
       throw new Error('未知的模板类型！');
     }
   } catch (e) {
-    log.error('Error:', e.message);
-    log.error('Error:', e.stack);
+    if (options.debug) {
+      log.error('Error:', e.stack);
+    } else {
+      log.error('Error:', e.message);
+    }
+  } finally {
+    process.exit(0);
   }
 }
 

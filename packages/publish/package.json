@@ -24,7 +24,8 @@
     "url": "https://github.com/sam9831/imooc-cli/issues"
   },
   "dependencies": {
-    "@imooc-cli/utils": "^1.0.4"
+    "@imooc-cli/utils": "^1.0.4",
+    "socket.io-client": "^2.3.1"
   },
   "devDependencies": {
     "mocha": "^8.1.3"

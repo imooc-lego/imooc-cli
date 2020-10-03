@@ -4,9 +4,9 @@ const fse = require('fs-extra');
 const SimpleGit = require('simple-git');
 const home = require('user-home');
 const axios = require('axios');
-const log = require('./log');
-const inquirer = require('./inquirer');
-const terminalLink = require('./terminalLink');
+const log = require('../log');
+const inquirer = require('../inquirer');
+const terminalLink = require('../terminalLink');
 
 const DEFAULT_CLI_HOME = '.imooc-cli';
 const GIT_TOKEN_FILE = '.git_token';
@@ -27,7 +27,6 @@ class GithubRequest {
     this.service.interceptors.request.use(
       config => {
         config.headers['Authorization'] = `token ${this.token}`;
-        config.headers['User-Agent'] = 'Mozilla/5.0';
         return config;
       },
       error => {
@@ -177,7 +176,7 @@ class Github {
       throw new Error('github 仓库获取或创建失败');
     }
     // git 初始化
-    this.init();
+    await this.init();
   };
 
   init = async () => {
@@ -186,7 +185,7 @@ class Github {
     log.notice('添加 git remote');
     await this.git.addRemote('origin', this.getRemote());
     log.notice('执行 git add');
-    await this.git.add();
+    // await this.git.add();
   }
 
   getUser = async () => {

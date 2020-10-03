@@ -57,12 +57,20 @@ function registerCommand() {
     .command('publish')
     .description('项目发布')
     .option('--packagePath <packagePath>', '手动指定publish包路径')
-    .option('--refreshToken', '强制更新github token信息')
-    .option('--refreshRemote', '强制更新github remote信息')
-    .action(async ({ packagePath, refreshToken, refreshRemote }) => {
+    .option('--refreshToken', '强制更新git token信息')
+    .option('--refreshOwner', '强制更新git owner信息')
+    .option('--refreshServer', '强制更新git server信息')
+    .option('--force', '强制更新所有缓存信息')
+    .option('--prod', '正式发布')
+    .action(async ({ packagePath, refreshToken, refreshOwner, refreshServer, force, prod }) => {
       const packageName = '@imooc-cli/publish';
       const packageVersion = '1.0.0';
-      await execCommand({ packagePath, packageName, packageVersion }, { refreshToken, refreshRemote });
+      if (force) {
+        refreshToken = true;
+        refreshOwner = true;
+        refreshServer = true;
+      }
+      await execCommand({ packagePath, packageName, packageVersion }, { refreshToken, refreshOwner, refreshServer, prod });
     });
 
   program
@@ -126,7 +134,9 @@ async function execCommand({ packagePath, packageName, packageVersion }, extraOp
       }
       rootFile = initPackage.getRootFilePath();
     }
-    const _config = Object.assign({}, config, extraOptions);
+    const _config = Object.assign({}, config, extraOptions, {
+      debug: args.debug,
+    });
     if (fs.existsSync(rootFile)) {
       const code = `require('${rootFile}')(${JSON.stringify(_config)})`;
       const p = exec('node', ['-e', code], { 'stdio': 'inherit' });
@@ -148,8 +158,11 @@ async function execCommand({ packagePath, packageName, packageVersion }, extraOp
 }
 
 function handleError(e) {
-  log.error('Error', e.message);
-  log.error('stack', e.stack);
+  if (args.debug) {
+    log.error('Error:', e.stack);
+  } else {
+    log.error('Error:', e.message);
+  }
   process.exit(1);
 }
 
