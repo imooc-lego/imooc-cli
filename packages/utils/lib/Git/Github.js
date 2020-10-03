@@ -50,6 +50,18 @@ class Github extends GitServer {
       Accept: 'application/vnd.github.v3+json',
     });
   };
+
+  getRemote = (login, repo) => {
+    return `git@github.com:${login}/${repo}.git`;
+  };
+
+  getSSHKeysUrl = () => {
+    return 'https://github.com/settings/keys';
+  };
+
+  getSSHKeysHelpUrl = () => {
+    return 'https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/connecting-to-github-with-ssh';
+  };
 }
 
 module.exports = Github;

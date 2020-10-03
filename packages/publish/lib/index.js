@@ -14,9 +14,7 @@ async function publish(options) {
     const git = new Git(projectInfo, options);
     await git.prepare();
     await git.commit();
-    if (options.prod) {
-      await git.publish();
-    }
+    await git.publish();
   } catch (e) {
     if (options.debug) {
       log.error('Error:', e.stack);

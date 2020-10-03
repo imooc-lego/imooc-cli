@@ -12,8 +12,8 @@ class CloudBuild {
   constructor(git, type, options = {}) {
     this._git = git;
     this._type = type; // 发布类型，目前仅支持oss
-    this._options = options;
     this._timeout = get(options, 'timeout') || 600 * 1000; // 默认超时时间10分钟
+    this._prod = options.prod;
   }
 
   timeout = (fn, timeout) => {
@@ -23,20 +23,23 @@ class CloudBuild {
   };
 
   prepare = async () => {
+    // 如果是上线发布，则检查OSS中是否存在项目
     const projectName = this._git.name;
-    const ossProject = await getOSSProject({
-      name: projectName,
-      type: this._options.prod ? 'prod' : 'dev',
-    });
-    if (ossProject.code === 0 && ossProject.data.length > 0) {
-      const cover = await inquirer({
-        type: 'list',
-        choices: [ { name: '覆盖发布', value: true }, { name: '放弃发布', value: false } ],
-        defaultValue: true,
-        message: `OSS已存在 [${projectName}] 项目，是否强行覆盖发布？`
+    if (this._prod) {
+      const ossProject = await getOSSProject({
+        name: projectName,
+        type: this._prod ? 'prod' : 'dev',
       });
-      if (!cover) {
-        throw new Error('发布终止');
+      if (ossProject.code === 0 && ossProject.data.length > 0) {
+        const cover = await inquirer({
+          type: 'list',
+          choices: [ { name: '覆盖发布', value: true }, { name: '放弃发布', value: false } ],
+          defaultValue: true,
+          message: `OSS已存在 [${projectName}] 项目，是否强行覆盖发布？`,
+        });
+        if (!cover) {
+          throw new Error('发布终止');
+        }
       }
     }
   };
@@ -52,6 +55,7 @@ class CloudBuild {
           name: this._git.name,
           branch: this._git.branch,
           version: this._git.version,
+          prod: this._prod,
         },
         transports: [ 'websocket' ],
       });
@@ -77,20 +81,8 @@ class CloudBuild {
         });
         resolve();
       });
-      socket.on('build', (msg) => {
-        const parsedMsg = parseMsg(msg);
-        if (FAILED_CODE.indexOf(parsedMsg.action) >= 0) {
-          log.error(parsedMsg.action, parsedMsg.message);
-          disconnect();
-        } else {
-          log.success(parsedMsg.action, parsedMsg.message);
-        }
-      });
-      socket.on('building', (msg) => {
-        console.log(msg);
-      });
       socket.on('disconnect', () => {
-        log.success('云构建任务断开');
+        log.success('disconnect', '云构建任务断开');
         disconnect();
       });
       socket.on('error', (err) => {
@@ -103,7 +95,29 @@ class CloudBuild {
   };
 
   build = () => {
-    this._socket.emit('build');
+    return new Promise((resolve, reject) => {
+      this._socket.emit('build');
+      this._socket.on('build', (msg) => {
+        const parsedMsg = parseMsg(msg);
+        if (FAILED_CODE.indexOf(parsedMsg.action) >= 0) {
+          log.error(parsedMsg.action, parsedMsg.message);
+          clearTimeout(this.timer);
+          this._socket.disconnect();
+          this._socket.close();
+        } else {
+          log.success(parsedMsg.action, parsedMsg.message);
+        }
+      });
+      this._socket.on('building', (msg) => {
+        console.log(msg);
+      });
+      this._socket.on('disconnect', () => {
+        resolve();
+      });
+      this._socket.on('error', (err) => {
+        reject(err);
+      });
+    })
   };
 }
 

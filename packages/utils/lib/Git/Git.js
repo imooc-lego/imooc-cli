@@ -79,6 +79,7 @@ class Git {
    * @param refreshToken 是否强制刷新token数据
    * @param refreshOwner 是否强制刷新own数据
    * @param refreshServer 是否强制刷新git远程仓库类型
+   * @param prod 是否为正式发布，正式发布后会建立tag删除开发分支
    */
   constructor({ dir, name, version }, { cliHome, refreshToken, refreshOwner, refreshServer, prod }) {
     this.git = SimpleGit(dir);
@@ -275,12 +276,23 @@ pnpm-debug.log*
 
   // 初始化
   init = async () => {
+    if (await this.getRemote()) {
+      return true;
+    }
+    await this.initAndAddRemote();
+    await this.initCommit();
+  };
+
+  getRemote = async () => {
     const gitPath = path.resolve(this.dir, GIT_ROOT_DIR);
     this.remote = this.gitServer.getRemote(this.login, this.name);
     if (fs.existsSync(gitPath)) {
       log.success('git 已完成初始化');
-      return;
+      return true;
     }
+  };
+
+  initAndAddRemote = async () => {
     log.notice('执行 git 初始化');
     await this.git.init(this.dir);
     log.notice('添加 git remote');
@@ -289,7 +301,6 @@ pnpm-debug.log*
     if (!remotes.find(item => item.name === 'origin')) {
       await this.git.addRemote('origin', this.remote);
     }
-    await this.initCommit();
   };
 
   initCommit = async () => {
@@ -362,43 +373,85 @@ pnpm-debug.log*
     log.success('推送代码成功');
   };
 
-  getCorrectVersion = async (type) => {
+  getCorrectVersion = async () => {
     log.notice('获取代码分支');
-    const remoteBranchList = await this.getRemoteBranchList(type);
-    if (remoteBranchList) {
-      // 获取正确的版本号
+    const remoteBranchList = await this.getRemoteBranchList(VERSION_RELEASE);
+    let releaseVersion = null;
+    if (remoteBranchList && remoteBranchList.length > 0) {
+      // 获取最近的线上版本
+      releaseVersion = remoteBranchList[0];
     }
-    this.branch = `${type || VERSION_DEVELOP}/${this.version}`;
+    const devVersion = this.version;
+    if (!releaseVersion) {
+      this.branch = `${VERSION_DEVELOP}/${devVersion}`;
+    } else if (semver.gt(this.version, releaseVersion)) {
+      log.info('当前版本大于线上最新版本', `${devVersion} >= ${releaseVersion}`);
+      this.branch = `${VERSION_DEVELOP}/${devVersion}`;
+    } else {
+      log.notice('当前线上版本大于或等于本地版本', `${releaseVersion} >= ${devVersion}`);
+      const incType = await inquirer({
+        type: 'list',
+        choices: [ {
+          name: `小版本（${releaseVersion} -> ${semver.inc(releaseVersion, 'patch')}）`,
+          value: 'patch',
+        }, {
+          name: `中版本（${releaseVersion} -> ${semver.inc(releaseVersion, 'minor')}）`,
+          value: 'minor',
+        }, {
+          name: `大版本（${releaseVersion} -> ${semver.inc(releaseVersion, 'major')}）`,
+          value: 'major',
+        } ],
+        defaultValue: 'patch',
+        message: '自动升级版本，请选择升级版本类型',
+      });
+      const incVersion = semver.inc(releaseVersion, incType);
+      this.branch = `${VERSION_DEVELOP}/${incVersion}`;
+      this.version = incVersion;
+      this.syncVersionToPackageJson();
+    }
     log.success(`代码分支获取成功 ${this.branch}`);
+  };
+
+  syncVersionToPackageJson = () => {
+    const pkg = fse.readJsonSync(`${this.dir}/package.json`);
+    if (pkg && pkg.version !== this.version) {
+      pkg.version = this.version;
+      fse.writeJsonSync(`${this.dir}/package.json`, pkg, { spaces: 2 });
+    }
   };
 
   getRemoteBranchList = async (type) => {
     // git ls-remote --refs
     const remoteList = await this.git.listRemote([ '--refs' ]);
-    console.log(remoteList);
     let reg;
     if (type === VERSION_RELEASE) {
       reg = /.+?refs\/tags\/release\/(\d+\.\d+\.\d+)/g;
     } else {
       reg = /.+?refs\/heads\/dev\/(\d+\.\d+\.\d+)/g;
     }
-    const branchList = remoteList.split('\n').map(remote => {
+    return remoteList.split('\n').map(remote => {
       const match = reg.exec(remote);
+      reg.lastIndex = 0;
       if (match && semver.valid(match[1])) {
         return match[1];
       }
-    }).filter(_ => _);
-    return branchList;
+    }).filter(_ => _).sort((a, b) => {
+      if (semver.lte(b, a)) {
+        if (a === b) return 0;
+        return -1;
+      }
+      return 1;
+    });
   };
 
-  checkoutBranch = async () => {
+  checkoutBranch = async (branch) => {
     const localBranchList = await this.git.branchLocal();
-    if (localBranchList.all.indexOf(this.branch) >= 0) {
-      await this.git.checkout(this.branch);
+    if (localBranchList.all.indexOf(branch) >= 0) {
+      await this.git.checkout(branch);
     } else {
-      await this.git.checkoutLocalBranch(this.branch);
+      await this.git.checkoutLocalBranch(branch);
     }
-    log.success(`分支切换到${this.branch}`);
+    log.success(`分支切换到${branch}`);
   };
 
   checkStash = async () => {
@@ -433,13 +486,41 @@ pnpm-debug.log*
     await this.checkStash();
     await this.checkConflicted();
     await this.checkNotCommitted();
-    await this.checkoutBranch();
+    await this.checkoutBranch(this.branch);
     await this.pullRemoteMasterAndBranch();
     await this.pushRemoteRepo(this.branch);
   };
 
-  // 正式发布
+  // 发布前自动检查
+  prePublish = async () => {
+    log.notice('开始执行发布前自动检查任务');
+    // 代码检查
+    this.checkProject();
+    // build 检查
+    log.success('自动检查通过');
+  };
+
+  checkProject = () => {
+    log.notice('开始检查代码结构');
+    const pkgPath = path.resolve(this.dir, 'package.json');
+    if (!fs.existsSync(pkgPath)) {
+      throw new Error('package.json 不存在！');
+    }
+    const pkg = fse.readJsonSync(pkgPath);
+    if (!pkg.scripts || !Object.keys(pkg.scripts).includes('build')) {
+      throw new Error('build命令不存在！');
+    }
+    log.success('代码结构检查通过');
+    log.notice('开始检查 build 结果');
+    require('child_process').execSync('npm run build', {
+      cwd: this.dir,
+    });
+    log.notice('build 结果检查通过');
+  };
+
+  // 测试/正式发布
   publish = async () => {
+    await this.prePublish();
     log.notice('开始发布');
     const gitPublishTypePath = this.createPath(GIT_PUBLISH_FILE);
     let gitPublishType = readFile(gitPublishTypePath);
@@ -458,6 +539,54 @@ pnpm-debug.log*
     await cloudBuild.prepare();
     await cloudBuild.init();
     await cloudBuild.build();
+    if (this.prod) {
+      await this.checkTag(); // 打tag
+      await this.checkoutBranch('master'); // 切换分支到master
+      await this.mergeBranchToMaster(); // 将代码合并到master
+      await this.pushRemoteRepo('master'); // 将代码推送到远程master
+      await this.deleteLocalBranch(); // 删除本地分支
+      await this.deleteRemoteBranch(); // 删除远程分支
+    }
+    log.success('发布成功');
+  };
+
+  checkTag = async () => {
+    log.notice('获取远程 tag 列表');
+    const tag = `${VERSION_RELEASE}/${this.version}`;
+    const tagList = await this.getRemoteBranchList(VERSION_RELEASE);
+    if (tagList.includes(this.version)) {
+      log.success('远程 tag 已存在', tag);
+      await this.git.push([ 'origin', `:refs/tags/${tag}` ]);
+      log.success('远程 tag 已删除', tag);
+    }
+    const localTagList = await this.git.tags();
+    if (localTagList.all.includes(tag)) {
+      log.success('本地 tag 已存在', tag);
+      await this.git.tag([ '-d', tag ]);
+      log.success('本地 tag 已删除', tag);
+    }
+    await this.git.addTag(tag);
+    log.success('本地 tag 创建成功', tag);
+    await this.git.pushTags('origin');
+    log.success('远程 tag 推送成功', tag);
+  };
+
+  mergeBranchToMaster = async () => {
+    log.notice('开始合并代码', `[${this.branch}] -> [master]`);
+    await this.git.mergeFromTo(this.branch, 'master');
+    log.success('代码合并成功', `[${this.branch}] -> [master]`);
+  };
+
+  deleteLocalBranch = async () => {
+    log.notice('开始删除本地分支', this.branch);
+    await this.git.deleteLocalBranch(this.branch);
+    log.success('删除本地分支成功', this.branch);
+  };
+
+  deleteRemoteBranch = async () => {
+    log.notice('开始删除远程分支', this.branch);
+    await this.git.push([ 'origin', '--delete', this.branch ]);
+    log.success('删除远程分支成功', this.branch);
   };
 }
 
