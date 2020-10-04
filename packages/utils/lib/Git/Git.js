@@ -535,7 +535,7 @@ pnpm-debug.log*
     } else {
       log.success('git publish类型获取成功', gitPublishType);
     }
-    const cloudBuild = new CloudBuild(this, gitPublishType, { prod: this.prod });
+    const cloudBuild = new CloudBuild(this, gitPublishType, { prod: !!this.prod });
     await cloudBuild.prepare();
     await cloudBuild.init();
     await cloudBuild.build();
