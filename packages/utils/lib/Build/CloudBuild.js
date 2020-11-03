@@ -60,8 +60,8 @@ class CloudBuild {
         transports: [ 'websocket' ],
       });
       this.timeout(() => {
-        log.error('云构建服务创建超时，自动终止');
-        disconnect();
+        // log.error('云构建服务创建超时，自动终止');
+        // disconnect();
       }, 5000);
       const disconnect = () => {
         clearTimeout(this.timer);

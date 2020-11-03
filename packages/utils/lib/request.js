@@ -1,5 +1,4 @@
 const axios = require('axios');
-const log = require('./log');
 
 const BASE_URL = 'http://book.youbaobao.xyz:7002';
 
@@ -19,7 +18,6 @@ service.interceptors.request.use(
 
 service.interceptors.response.use(
   response => {
-    log.verbose('response', response.data);
     return response.data;
   },
   error => {

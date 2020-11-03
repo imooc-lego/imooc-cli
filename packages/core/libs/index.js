@@ -189,7 +189,7 @@ async function checkGlobalUpdate() {
   log.verbose('检查 imooc-cli 最新版本');
   const currentVersion = packageConfig.version;
   const lastVersion = await npm.getNpmLatestSemverVersion(NPM_NAME, currentVersion);
-  if (semver.gt(lastVersion, currentVersion)) {
+  if (lastVersion && semver.gt(lastVersion, currentVersion)) {
     log.warn(colors.yellow(`请手动更新 ${NPM_NAME}，当前版本：${packageConfig.version}，最新版本：${lastVersion}
                 更新命令： npm install -g ${NPM_NAME}`));
   }

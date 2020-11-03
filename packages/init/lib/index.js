@@ -5,6 +5,7 @@ const fse = require('fs-extra');
 const { log, inquirer, spinner, Package, sleep, exec, formatName, formatClassName, ejs } = require('@imooc-cli/utils');
 const getProjectTemplate = require('./getProjectTemplate');
 
+const COMPONENT_FILE = '.componentrc';
 const TYPE_PROJECT = 'project';
 const TYPE_COMPONENT = 'component';
 const TEMPLATE_TYPE_NORMAL = 'normal';
@@ -82,7 +83,7 @@ function execCustomTemplate(rootFile, options) {
 
 async function npminstall(targetPath) {
   return new Promise((resolve, reject) => {
-    const p = exec('cnpm', ['install'], { stdio: 'inherit', cwd: targetPath });
+    const p = exec('cnpm', ['install', '--registry=https://registry.npm.taobao.org'], { stdio: 'inherit', cwd: targetPath });
     p.on('error', e => {
       reject(e);
     });
@@ -102,6 +103,21 @@ async function execStartCommand(targetPath, startCommand) {
       resolve(c);
     });
   });
+}
+
+// 如果是组件项目，则创建组件相关文件
+async function createComponentFile(template, data, dir) {
+  if (template.tag.includes(TYPE_COMPONENT)) {
+    const componentData = {
+      ...data,
+      buildPath: template.buildPath,
+      examplePath: template.examplePath,
+      npmName: template.npmName,
+      npmVersion: template.version,
+    }
+    const componentFile = path.resolve(dir, COMPONENT_FILE);
+    fs.writeFileSync(componentFile, JSON.stringify(componentData));
+  }
 }
 
 async function installTemplate(template, ejsData, options) {
@@ -129,6 +145,8 @@ async function installTemplate(template, ejsData, options) {
   await ejs(targetDir, ejsData, {
     ignore: ejsIgnoreFiles,
   });
+  // 如果是组件，则进行特殊处理
+  await createComponentFile(template, ejsData, targetDir);
   // 安装依赖文件
   log.notice('开始安装依赖');
   await npminstall(targetDir);

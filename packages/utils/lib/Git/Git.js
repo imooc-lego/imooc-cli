@@ -12,6 +12,7 @@ const Github = require('./Github');
 const Gitee = require('./Gitee');
 const CloudBuild = require('../Build/CloudBuild');
 const { readFile, writeFile } = require('../file');
+const ComponentRequest = require('./ComponentRequest');
 
 const DEFAULT_CLI_HOME = '.imooc-cli';
 const GIT_ROOT_DIR = '.git';
@@ -29,6 +30,7 @@ const GITEE = 'gitee';
 
 const VERSION_RELEASE = 'release';
 const VERSION_DEVELOP = 'dev';
+const COMPONENT_FILE = '.componentrc';
 
 const GIT_SERVER_TYPE = [ {
   name: 'Github',
@@ -106,6 +108,7 @@ class Git {
     await this.checkGitOwner();
     await this.checkRepo();
     await this.checkGitIgnore();
+    await this.checkComponent();
     await this.init();
   };
 
@@ -247,7 +250,32 @@ class Git {
   checkGitIgnore = async () => {
     const gitIgnore = path.resolve(this.dir, GIT_IGNORE_FILE);
     if (!fs.existsSync(gitIgnore)) {
-      writeFile(gitIgnore, `.DS_Store
+      if (this.isComponent()) {
+        writeFile(gitIgnore, `.DS_Store
+node_modules
+
+
+# local env files
+.env.local
+.env.*.local
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?`);
+        log.success('自动写入 .gitignore 文件');
+      } else {
+        writeFile(gitIgnore, `.DS_Store
 node_modules
 /dist
 
@@ -270,7 +298,29 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?`);
-      log.success('自动写入 .gitignore 文件');
+        log.success('自动写入 .gitignore 文件');
+      }
+    }
+  };
+
+  // 检查 component
+  checkComponent = async () => {
+    let componentFile = this.isComponent();
+    // 只有 component 才启动该逻辑
+    if (componentFile) {
+      log.notice('开始检查 build 结果');
+      require('child_process').execSync('npm run build', {
+        cwd: this.dir,
+      });
+      const buildPath = path.resolve(this.dir, componentFile.buildPath);
+      if (!fs.existsSync(buildPath)) {
+        throw new Error(`构建结果：${buildPath} 不存在！`);
+      }
+      const pkg = this.getPackageJson();
+      if (!pkg.files || !pkg.files.includes(componentFile.buildPath)) {
+        throw new Error(`package.json 中 files 属性未添加构建结果目录：[${componentFile.buildPath}]，请在 package.json 中手动添加！`);
+      }
+      log.notice('build 结果检查通过');
     }
   };
 
@@ -363,6 +413,7 @@ pnpm-debug.log*
       } else {
         log.error(err.message);
       }
+      log.error('请重新执行 imooc-cli publish，如仍然报错请尝试删除 .git 目录后重试');
       process.exit(0);
     });
   };
@@ -500,13 +551,17 @@ pnpm-debug.log*
     log.success('自动检查通过');
   };
 
-  checkProject = () => {
-    log.notice('开始检查代码结构');
+  getPackageJson = () => {
     const pkgPath = path.resolve(this.dir, 'package.json');
     if (!fs.existsSync(pkgPath)) {
       throw new Error('package.json 不存在！');
     }
-    const pkg = fse.readJsonSync(pkgPath);
+    return fse.readJsonSync(pkgPath);
+  };
+
+  checkProject = () => {
+    log.notice('开始检查代码结构');
+    const pkg = this.getPackageJson();
     if (!pkg.scripts || !Object.keys(pkg.scripts).includes('build')) {
       throw new Error('build命令不存在！');
     }
@@ -518,28 +573,76 @@ pnpm-debug.log*
     log.notice('build 结果检查通过');
   };
 
+  isComponent = () => {
+    const componentFilePath = path.resolve(this.dir, COMPONENT_FILE);
+    return fs.existsSync(componentFilePath) && fse.readJsonSync(componentFilePath);
+  };
+
+  saveComponentToDB = async () => {
+    log.notice('上传组件信息至OSS+写入数据库');
+    const componentFile = this.isComponent();
+    const componentExamplePath = path.resolve(this.dir, componentFile.examplePath);
+    let dirs = fs.readdirSync(componentExamplePath);
+    dirs = dirs.filter(dir => dir.match(/^index(\d)*.html$/));
+    componentFile.exampleList = dirs;
+    const data = await ComponentRequest.createComponent({
+      component: componentFile,
+      git: {
+        type: this.gitServer.type,
+        remote: this.remote,
+        version: this.version,
+        branch: this.branch,
+        login: this.login,
+        owner: this.owner,
+        repo: this.repo,
+      },
+    });
+    if (!data) {
+      throw new Error('上传组件失败');
+    }
+    log.notice('保存组件信息成功');
+    log.notice('上传预览页面至OSS');
+    log.success('上传预览页面至OSS');
+  };
+
+  uploadComponentToNpm = async () => {
+    if (this.isComponent()) {
+      log.notice('开始发布 npm');
+      require('child_process').execSync('npm publish', {
+        cwd: this.dir,
+      });
+      log.notice('npm 发布成功');
+    }
+  };
+
   // 测试/正式发布
   publish = async () => {
-    await this.prePublish();
-    log.notice('开始发布');
-    const gitPublishTypePath = this.createPath(GIT_PUBLISH_FILE);
-    let gitPublishType = readFile(gitPublishTypePath);
-    if (!gitPublishType) {
-      gitPublishType = await inquirer({
-        type: 'list',
-        choices: GIT_PUBLISH_TYPE,
-        message: '请选择您想要上传代码的平台',
-      });
-      writeFile(gitPublishTypePath, gitPublishType);
-      log.success('git publish类型写入成功', `${gitPublishType} -> ${gitPublishTypePath}`);
+    if (this.isComponent()) {
+      log.notice('开始发布组件');
+      await this.saveComponentToDB();
     } else {
-      log.success('git publish类型获取成功', gitPublishType);
+      await this.prePublish();
+      log.notice('开始发布');
+      const gitPublishTypePath = this.createPath(GIT_PUBLISH_FILE);
+      let gitPublishType = readFile(gitPublishTypePath);
+      if (!gitPublishType) {
+        gitPublishType = await inquirer({
+          type: 'list',
+          choices: GIT_PUBLISH_TYPE,
+          message: '请选择您想要上传代码的平台',
+        });
+        writeFile(gitPublishTypePath, gitPublishType);
+        log.success('git publish类型写入成功', `${gitPublishType} -> ${gitPublishTypePath}`);
+      } else {
+        log.success('git publish类型获取成功', gitPublishType);
+      }
+      const cloudBuild = new CloudBuild(this, gitPublishType, { prod: !!this.prod });
+      await cloudBuild.prepare();
+      await cloudBuild.init();
+      await cloudBuild.build();
     }
-    const cloudBuild = new CloudBuild(this, gitPublishType, { prod: !!this.prod });
-    await cloudBuild.prepare();
-    await cloudBuild.init();
-    await cloudBuild.build();
     if (this.prod) {
+      await this.uploadComponentToNpm();
       await this.checkTag(); // 打tag
       await this.checkoutBranch('master'); // 切换分支到master
       await this.mergeBranchToMaster(); // 将代码合并到master
