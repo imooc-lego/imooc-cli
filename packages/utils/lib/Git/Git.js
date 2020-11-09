@@ -13,6 +13,9 @@ const Gitee = require('./Gitee');
 const CloudBuild = require('../Build/CloudBuild');
 const { readFile, writeFile } = require('../file');
 const ComponentRequest = require('./ComponentRequest');
+const getOSSFile = require('../Build/getOSSFile');
+const get = require('lodash/get');
+const axios = require('axios');
 
 const DEFAULT_CLI_HOME = '.imooc-cli';
 const GIT_ROOT_DIR = '.git';
@@ -31,6 +34,8 @@ const GITEE = 'gitee';
 const VERSION_RELEASE = 'release';
 const VERSION_DEVELOP = 'dev';
 const COMPONENT_FILE = '.componentrc';
+
+const TEMPLATE_TEMP_DIR = 'oss';
 
 const GIT_SERVER_TYPE = [ {
   name: 'Github',
@@ -82,8 +87,14 @@ class Git {
    * @param refreshOwner 是否强制刷新own数据
    * @param refreshServer 是否强制刷新git远程仓库类型
    * @param prod 是否为正式发布，正式发布后会建立tag删除开发分支
+   * @param sshUser 远程服务器用户名
+   * @param sshIp 远程服务器IP
+   * @param sshPath 远程服务器路径
    */
-  constructor({ dir, name, version }, { cliHome, refreshToken, refreshOwner, refreshServer, prod }) {
+  constructor({ dir, name, version }, {
+    cliHome, refreshToken, refreshOwner, refreshServer,
+    sshUser, sshIp, sshPath, prod,
+  }) {
     this.git = SimpleGit(dir);
     this.name = name;
     this.version = version;
@@ -95,6 +106,9 @@ class Git {
     this.refreshToken = refreshToken; // 强制刷新 token
     this.refreshOwner = refreshOwner; // 强制刷新 owner
     this.refreshServer = refreshServer; // 强制刷新 git 远程仓库类型
+    this.sshUser = sshUser;
+    this.sshIp = sshIp;
+    this.sshPath = sshPath;
     this.gitServer = null; // 默认远程 git 服务
     this.prod = prod; // 是否为正式发布
   }
@@ -551,6 +565,7 @@ pnpm-debug.log*
     log.success('自动检查通过');
   };
 
+  // 获取项目package.json文件
   getPackageJson = () => {
     const pkgPath = path.resolve(this.dir, 'package.json');
     if (!fs.existsSync(pkgPath)) {
@@ -559,6 +574,7 @@ pnpm-debug.log*
     return fse.readJsonSync(pkgPath);
   };
 
+  // build结果检查
   checkProject = () => {
     log.notice('开始检查代码结构');
     const pkg = this.getPackageJson();
@@ -573,11 +589,13 @@ pnpm-debug.log*
     log.notice('build 结果检查通过');
   };
 
+  // 判断是否为组件
   isComponent = () => {
     const componentFilePath = path.resolve(this.dir, COMPONENT_FILE);
     return fs.existsSync(componentFilePath) && fse.readJsonSync(componentFilePath);
   };
 
+  // 将组件信息保存至数据库
   saveComponentToDB = async () => {
     log.notice('上传组件信息至OSS+写入数据库');
     const componentFile = this.isComponent();
@@ -605,6 +623,7 @@ pnpm-debug.log*
     log.success('上传预览页面至OSS');
   };
 
+  // 发布组件至NPM
   uploadComponentToNpm = async () => {
     if (this.isComponent()) {
       log.notice('开始发布 npm');
@@ -612,6 +631,40 @@ pnpm-debug.log*
         cwd: this.dir,
       });
       log.notice('npm 发布成功');
+    }
+  };
+
+  // 发布HTML模板代码
+  uploadTemplate = async () => {
+    if (this.sshUser && this.sshPath && this.sshIp) {
+      log.notice('开始下载模板文件');
+      const ossTemplateFile = await getOSSFile({
+        type: this.prod ? 'prod' : 'dev',
+        name: `${this.name}/index.html`,
+      });
+      log.verbose('ossTemplateFile', ossTemplateFile);
+      const templateFileUrl = get(ossTemplateFile, 'data[0].url');
+      log.verbose('templateFileUrl', templateFileUrl);
+      const response = await axios.get(templateFileUrl);
+      if (response.data) {
+        const ossTempDir = path.resolve(this.homePath, TEMPLATE_TEMP_DIR, `${this.name}@${this.version}`);
+        if (!fs.existsSync(ossTempDir)) {
+          fse.mkdirpSync(ossTempDir);
+        } else {
+          fse.emptyDirSync(ossTempDir);
+        }
+        const templateFilePath = path.resolve(ossTempDir, 'index.html');
+        fse.createFileSync(templateFilePath);
+        fs.writeFileSync(templateFilePath, response.data);
+        log.success('模板文件下载成功', templateFilePath);
+        log.notice('开始上传模板文件至服务器');
+        const uploadCmd = `scp -r ${templateFilePath} ${this.sshUser}@${this.sshIp}:${this.sshPath}`;
+        log.verbose('uploadCmd', uploadCmd);
+        const ret = require('child_process').execSync(uploadCmd);
+        console.log(ret.toString());
+        log.success('模板文件上传成功');
+        fse.emptyDirSync(ossTempDir);
+      }
     }
   };
 
@@ -636,10 +689,13 @@ pnpm-debug.log*
       } else {
         log.success('git publish类型获取成功', gitPublishType);
       }
-      const cloudBuild = new CloudBuild(this, gitPublishType, { prod: !!this.prod });
+      const cloudBuild = new CloudBuild(this, gitPublishType, {
+        prod: !!this.prod,
+      });
       await cloudBuild.prepare();
       await cloudBuild.init();
       await cloudBuild.build();
+      await this.uploadTemplate();
     }
     if (this.prod) {
       await this.uploadComponentToNpm();
