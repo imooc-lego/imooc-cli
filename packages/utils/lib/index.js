@@ -11,6 +11,7 @@ const terminalLink = require('./terminalLink');
 const Package = require('./Package');
 const Git = require('./Git/Git');
 const file = require('./file');
+const locale = require('./Locale/loadLocale');
 
 function sleep(timeout) {
   return new Promise((resolve => {
@@ -81,4 +82,5 @@ module.exports = {
   formatClassName,
   terminalLink,
   ...file,
+  locale,
 };

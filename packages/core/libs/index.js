@@ -5,7 +5,7 @@ const program = require('commander');
 const colors = require('colors/safe');
 const userHome = require('user-home');
 const semver = require('semver');
-const { log, npm, Package, exec } = require('@imooc-cli/utils');
+const { log, npm, Package, exec, locale } = require('@imooc-cli/utils');
 const packageConfig = require('../package');
 
 const {
@@ -256,6 +256,6 @@ function checkNodeVersion() {
 }
 
 function checkPkgVersion() {
-  log.success('欢迎使用慕课网前端统一脚手架');
-  log.success('当前运行版本', packageConfig.version);
+  log.notice('cli', packageConfig.version);
+  log.success(locale.welcome);
 }
