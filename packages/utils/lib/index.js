@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const log = require('./log');
 const request = require('./request');
 const npm = require('./npm');
@@ -12,6 +13,7 @@ const Package = require('./Package');
 const Git = require('./Git/Git');
 const file = require('./file');
 const locale = require('./Locale/loadLocale');
+const formatPath = require('./formatPath');
 
 function sleep(timeout) {
   return new Promise((resolve => {
@@ -83,4 +85,5 @@ module.exports = {
   terminalLink,
   ...file,
   locale,
+  formatPath,
 };
