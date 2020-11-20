@@ -670,6 +670,7 @@ pnpm-debug.log*
 
   // 测试/正式发布
   publish = async () => {
+    let buildRet = false;
     if (this.isComponent()) {
       log.notice('开始发布组件');
       await this.saveComponentToDB();
@@ -694,10 +695,12 @@ pnpm-debug.log*
       });
       await cloudBuild.prepare();
       await cloudBuild.init();
-      await cloudBuild.build();
-      await this.uploadTemplate();
+      buildRet = await cloudBuild.build();
+      if (buildRet) {
+        await this.uploadTemplate();
+      }
     }
-    if (this.prod) {
+    if (this.prod && buildRet) {
       await this.uploadComponentToNpm();
       await this.checkTag(); // 打tag
       await this.checkoutBranch('master'); // 切换分支到master
@@ -706,7 +709,12 @@ pnpm-debug.log*
       await this.deleteLocalBranch(); // 删除本地分支
       await this.deleteRemoteBranch(); // 删除远程分支
     }
-    log.success('发布成功');
+    if (buildRet) {
+      log.success('发布成功');
+    } else {
+      log.success('发布失败');
+    }
+    return buildRet;
   };
 
   checkTag = async () => {

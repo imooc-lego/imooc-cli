@@ -12,7 +12,7 @@ class CloudBuild {
   constructor(git, type, options = {}) {
     this._git = git;
     this._type = type; // 发布类型，目前仅支持oss
-    this._timeout = get(options, 'timeout') || 600 * 1000; // 默认超时时间10分钟
+    this._timeout = get(options, 'timeout') || 1200 * 1000; // 默认超时时间20分钟
     this._prod = options.prod;
   }
 
@@ -95,6 +95,7 @@ class CloudBuild {
   };
 
   build = () => {
+    let ret = true;
     return new Promise((resolve, reject) => {
       this._socket.emit('build');
       this._socket.on('build', (msg) => {
@@ -104,6 +105,7 @@ class CloudBuild {
           clearTimeout(this.timer);
           this._socket.disconnect();
           this._socket.close();
+          ret = false;
         } else {
           log.success(parsedMsg.action, parsedMsg.message);
         }
@@ -112,7 +114,7 @@ class CloudBuild {
         console.log(msg);
       });
       this._socket.on('disconnect', () => {
-        resolve();
+        resolve(ret);
       });
       this._socket.on('error', (err) => {
         reject(err);
