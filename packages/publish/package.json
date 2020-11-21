@@ -1,6 +1,6 @@
 {
   "name": "@imooc-cli/publish",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "> TODO: description",
   "author": "sam <247765564@qq.com>",
   "homepage": "https://github.com/sam9831/imooc-cli#readme",
@@ -24,7 +24,7 @@
     "url": "https://github.com/sam9831/imooc-cli/issues"
   },
   "dependencies": {
-    "@imooc-cli/utils": "^1.1.0",
+    "@imooc-cli/utils": "^1.1.1",
     "colors": "^1.4.0",
     "socket.io-client": "^2.3.1"
   },
