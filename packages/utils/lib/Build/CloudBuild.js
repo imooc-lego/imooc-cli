@@ -10,10 +10,14 @@ const FAILED_CODE = [ 'prepare failed', 'download failed', 'build failed', 'pre-
 
 class CloudBuild {
   constructor(git, type, options = {}) {
+    log.verbose('CloudBuild options', options);
     this._git = git;
     this._type = type; // 发布类型，目前仅支持oss
     this._timeout = get(options, 'timeout') || 1200 * 1000; // 默认超时时间20分钟
     this._prod = options.prod;
+    this._keepCache = options.keepCache;
+    this._cnpm = options.cnpm;
+    this._buildCmd = options.buildCmd;
   }
 
   timeout = (fn, timeout) => {
@@ -56,6 +60,9 @@ class CloudBuild {
           branch: this._git.branch,
           version: this._git.version,
           prod: this._prod,
+          keepCache: this._keepCache,
+          cnpm: this._cnpm,
+          buildCmd: this._buildCmd,
         },
         transports: [ 'websocket' ],
       });

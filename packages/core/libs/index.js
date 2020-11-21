@@ -62,10 +62,13 @@ function registerCommand() {
     .option('--refreshServer', '强制更新git server信息')
     .option('--force', '强制更新所有缓存信息')
     .option('--prod', '正式发布')
+    .option('--keepCache', '保留缓存')
+    .option('--cnpm', '使用cnpm')
+    .option('--buildCmd <buildCmd>', '手动指定build命令')
     .option('--sshUser <sshUser>', '模板服务端用户名')
     .option('--sshIp <sshIp>', '模板服务器IP或域名')
     .option('--sshPath <sshPath>', '模板服务器上传路径')
-    .action(async ({ packagePath, refreshToken, refreshOwner, refreshServer, force, prod, sshUser, sshIp, sshPath }) => {
+    .action(async ({ packagePath, refreshToken, refreshOwner, refreshServer, force, prod, sshUser, sshIp, sshPath, keepCache, cnpm, buildCmd }) => {
       const packageName = '@imooc-cli/publish';
       const packageVersion = '1.0.0';
       if (force) {
@@ -73,7 +76,7 @@ function registerCommand() {
         refreshOwner = true;
         refreshServer = true;
       }
-      await execCommand({ packagePath, packageName, packageVersion }, { refreshToken, refreshOwner, refreshServer, prod, sshUser, sshIp, sshPath });
+      await execCommand({ packagePath, packageName, packageVersion }, { refreshToken, refreshOwner, refreshServer, prod, sshUser, sshIp, sshPath, keepCache, cnpm, buildCmd });
     });
 
   program

@@ -10,6 +10,8 @@ async function publish(options) {
   log.verbose('publish', options);
   try {
     const startTime = new Date().getTime();
+    // 初始化检查
+    prepare(options);
     // 本地初始化
     // 检查项目的基本信息
     const projectInfo = checkProjectInfo();
@@ -24,12 +26,22 @@ async function publish(options) {
     log.info(colors.red('==='), colors.gray('云构建+云发布'), colors.red('==='));
     await git.publish();
     const endTime = new Date().getTime();
-    log.info('本次发布耗时：', Math.floor((endTime - startTime) / 3600) + '秒');
+    log.verbose('elapsed time', new Date(startTime), new Date(endTime));
+    log.info('本次发布耗时：', Math.floor((endTime - startTime) / 1000) + '秒');
   } catch (e) {
     if (options.debug) {
       log.error('Error:', e.stack);
     } else {
       log.error('Error:', e.message);
+    }
+  }
+}
+
+function prepare(options) {
+  if (options.buildCmd) {
+    const { buildCmd } = options;
+    if (!buildCmd.startsWith('npm run build')) {
+      throw new Error('buildCmd参数不符合规范，正确格式：npm run build:xxx');
     }
   }
 }

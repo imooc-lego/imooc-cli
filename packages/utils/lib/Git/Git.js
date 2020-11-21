@@ -93,7 +93,7 @@ class Git {
    */
   constructor({ dir, name, version }, {
     cliHome, refreshToken, refreshOwner, refreshServer,
-    sshUser, sshIp, sshPath, prod,
+    sshUser, sshIp, sshPath, prod, keepCache, cnpm, buildCmd,
   }) {
     this.git = SimpleGit(dir);
     this.name = name;
@@ -111,6 +111,9 @@ class Git {
     this.sshPath = sshPath;
     this.gitServer = null; // 默认远程 git 服务
     this.prod = prod; // 是否为正式发布
+    this.keepCache = keepCache; // 是否保留服务端缓存（用于调试bug）
+    this.cnpm = cnpm; // 是否使用cnpm
+    this.buildCmd = buildCmd; // 手动指定build命令
   }
 
   // 核心业务逻辑，提交代码前的准备工作
@@ -583,9 +586,15 @@ pnpm-debug.log*
     }
     log.success('代码结构检查通过');
     log.notice('开始检查 build 结果');
-    require('child_process').execSync('npm run build', {
-      cwd: this.dir,
-    });
+    if (this.buildCmd) {
+      require('child_process').execSync(this.buildCmd, {
+        cwd: this.dir,
+      });
+    } else {
+      require('child_process').execSync('npm run build', {
+        cwd: this.dir,
+      });
+    }
     log.notice('build 结果检查通过');
   };
 
@@ -692,6 +701,9 @@ pnpm-debug.log*
       }
       const cloudBuild = new CloudBuild(this, gitPublishType, {
         prod: !!this.prod,
+        keepCache: !!this.keepCache,
+        cnpm: !!this.cnpm,
+        buildCmd: this.buildCmd,
       });
       await cloudBuild.prepare();
       await cloudBuild.init();
