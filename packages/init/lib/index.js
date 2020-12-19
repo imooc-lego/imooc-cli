@@ -83,7 +83,7 @@ function execCustomTemplate(rootFile, options) {
 
 async function npminstall(targetPath) {
   return new Promise((resolve, reject) => {
-    const p = exec('cnpm', ['install', '--registry=https://registry.npm.taobao.org'], { stdio: 'inherit', cwd: targetPath });
+    const p = exec('npm', ['install', '--registry=https://registry.npm.taobao.org'], { stdio: 'inherit', cwd: targetPath });
     p.on('error', e => {
       reject(e);
     });
