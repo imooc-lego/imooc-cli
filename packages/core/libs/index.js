@@ -68,7 +68,20 @@ function registerCommand() {
     .option('--sshUser <sshUser>', '模板服务端用户名')
     .option('--sshIp <sshIp>', '模板服务器IP或域名')
     .option('--sshPath <sshPath>', '模板服务器上传路径')
-    .action(async ({ packagePath, refreshToken, refreshOwner, refreshServer, force, prod, sshUser, sshIp, sshPath, keepCache, cnpm, buildCmd }) => {
+    .action(async ({
+                     packagePath,
+                     refreshToken,
+                     refreshOwner,
+                     refreshServer,
+                     force,
+                     prod,
+                     sshUser,
+                     sshIp,
+                     sshPath,
+                     keepCache,
+                     cnpm,
+                     buildCmd,
+                   }) => {
       const packageName = '@imooc-cli/publish';
       const packageVersion = '1.0.0';
       if (force) {
@@ -76,7 +89,32 @@ function registerCommand() {
         refreshOwner = true;
         refreshServer = true;
       }
-      await execCommand({ packagePath, packageName, packageVersion }, { refreshToken, refreshOwner, refreshServer, prod, sshUser, sshIp, sshPath, keepCache, cnpm, buildCmd });
+      await execCommand({ packagePath, packageName, packageVersion }, {
+        refreshToken,
+        refreshOwner,
+        refreshServer,
+        prod,
+        sshUser,
+        sshIp,
+        sshPath,
+        keepCache,
+        cnpm,
+        buildCmd,
+      });
+    });
+
+  program
+    .command('replace')
+    .description('作业网站优化')
+    .option('--packagePath <packagePath>', '手动指定replace包路径')
+    .option('--region <region>', 'oss region')
+    .option('--bucket <bucket>', 'oss bucket')
+    .option('--ossAccessKey <ossAccessKey>', 'oss accessKey')
+    .option('--ossSecretKey <ossSecretKey>', 'oss secretKey')
+    .action(async ({ packagePath, region, bucket, ossAccessKey, ossSecretKey }) => {
+      const packageName = '@imooc-cli/replace';
+      const packageVersion = '1.0.0';
+      await execCommand({ packagePath, packageName, packageVersion }, { region, bucket, ossAccessKey, ossSecretKey });
     });
 
   program
