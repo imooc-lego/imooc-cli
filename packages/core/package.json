@@ -7,7 +7,7 @@
   "license": "ISC",
   "main": "bin/imooc-cli.js",
   "bin": {
-    "imooc-cli": "bin/imooc-cli.js"
+    "imooc-cli-add": "bin/imooc-cli.js"
   },
   "directories": {
     "lib": "libs",
@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@imooc-cli/utils": "^1.1.1",
+    "@imooc-cli/add": "file:../add",
     "colors": "^1.4.0",
     "commander": "^6.1.0",
     "dotenv": "^8.2.0",
