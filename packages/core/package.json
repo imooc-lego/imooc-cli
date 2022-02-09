@@ -7,7 +7,7 @@
   "license": "ISC",
   "main": "bin/imooc-cli.js",
   "bin": {
-    "imooc-cli-add3": "bin/imooc-cli.js"
+    "imooc-cli": "bin/imooc-cli.js"
   },
   "directories": {
     "lib": "libs",
